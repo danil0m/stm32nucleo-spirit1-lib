@@ -39,12 +39,12 @@ extern "C" {
 #include "stm32l1xx_nucleo.h"
 #include "platform-conf.h"  
 
-#if COMPILE_SENSORS
+#ifdef X_NUCLEO_IKS01A1
 #include "x_nucleo_iks01a1_pressure.h"
 #include "x_nucleo_iks01a1_imu_6axes.h"
 #include "x_nucleo_iks01a1_magneto.h"
 #include "x_nucleo_iks01a1_hum_temp.h"  
-#endif /*COMPILE_SENSORS*/
+#endif /*X_NUCLEO_IKS01A1*/
 
   
   /* Exported types ------------------------------------------------------------*/
