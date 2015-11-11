@@ -156,7 +156,18 @@
 #define CRC_MODE                    PKT_CRC_MODE_8BITS
 #define EN_WHITENING                S_ENABLE
 #define SYNC_WORD                   0x1A2635A8
-
+/*
+"Old" parameters (may grant better throughput due to higher datarate)
+#define CHANNEL_SPACE               100e3
+#define FREQ_DEVIATION              127e3
+#define BANDWIDTH                   540.0e3
+#define MODULATION_SELECT           GFSK_BT1
+#define DATARATE                    250000
+#define LENGTH_WIDTH                8
+#define CRC_MODE                    PKT_CRC_MODE_16BITS_2
+#define EN_WHITENING                S_DISABLE
+#define SYNC_WORD                   0x88888888
+*/
 
 
 
