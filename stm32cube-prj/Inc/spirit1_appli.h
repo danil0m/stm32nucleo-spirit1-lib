@@ -142,20 +142,22 @@
 #define RECEIVE_TIMEOUT             2000.0 /*change the value for required timeout period*/
 #define RSSI_THRESHOLD              -120
 
-
-
 #define POWER_DBM                   11.6
-#define CHANNEL_SPACE               100e3
-#define FREQ_DEVIATION              127e3
-#define BANDWIDTH                   540.0e3
-#define MODULATION_SELECT           GFSK_BT1
-#define DATARATE                    250000
 #define XTAL_OFFSET_PPM             0
-#define SYNC_WORD                   0x88888888
-#define LENGTH_WIDTH                8
-#define CRC_MODE                    PKT_CRC_MODE_16BITS_2
-#define EN_WHITENING                S_DISABLE
 #define INFINITE_TIMEOUT            0.0
+
+/*Updated Radio paramters to increase the radio range*/
+#define CHANNEL_SPACE               20e3
+#define FREQ_DEVIATION              20e3
+#define BANDWIDTH                   100E3
+#define MODULATION_SELECT           FSK
+#define DATARATE                    38400
+#define LENGTH_WIDTH                7
+#define CRC_MODE                    PKT_CRC_MODE_8BITS
+#define EN_WHITENING                S_ENABLE
+#define SYNC_WORD                   0x1A2635A8
+
+
 
 
 /* Exported types ------------------------------------------------------------*/
