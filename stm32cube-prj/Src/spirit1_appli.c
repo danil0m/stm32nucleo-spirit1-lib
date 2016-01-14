@@ -50,10 +50,11 @@ by the user
 #include "spirit1_appli.h"
 #include "MCU_Interface.h"
 #include "SPIRIT1_Util.h"
+#include <stdio.h>
 
 #include "lib/sensors.h"
 extern const struct sensors_sensor button_sensor;
-
+extern RTC_HandleTypeDef RtcHandle;
 /** @addtogroup USER
 * @{
 */
@@ -228,10 +229,10 @@ uint16_t wakeupCounter = 0;
 uint16_t dataSendCounter = 0x00;
 
 /* Private function prototypes -----------------------------------------------*/
-
+static void LowPower_Config(void);
+static void SystemClockConfig_STOP(void);
 void HAL_Spirit1_Init(void);
-void Data_Comm_On(uint8_t *pTxBuff, uint8_t cTxlen, uint8_t* pRxBuff, uint8_t cRxlen);
-void Enter_LP_mode(void);
+void Enter_LP_mode(MCU_Status_t mcu_status, Radio_Status_t radio_status);
 void Exit_LP_mode(void);
 void MCU_Enter_StopMode(void);
 void MCU_Enter_StandbyMode(void);
@@ -243,11 +244,14 @@ void RadioSleep(void);
 void SPIRIT1_Init(void);
 void STackProtocolInit(void);
 void BasicProtocolInit(void);
-void P2PInterruptHandler(void);
-void Set_KeyStatus(FlagStatus val);
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
+void FLASH_WriteArray(uint8_t* array, uint32_t length);
+RTC_TimeTypeDef __attribute__ ((noinline))RTC_GetTime();
+HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss);
+void Set_WakeupTimer(uint32_t milliseconds);
+void Disable_WakeupTimer();
+int Set_Alarm(uint8_t hour, uint8_t minutes, uint8_t seconds);
+void Disable_Alarm();
 void HAL_SYSTICK_Callback(void);
-
 /* Private functions ---------------------------------------------------------*/
 
 /** @defgroup SPIRIT1_APPLI_Private_Functions
@@ -276,10 +280,11 @@ void HAL_Spirit1_Init(void)
 void SPIRIT1_Init(void)
 {
   pRadioDriver = &spirit_cb;
-   
+
+
      /* Spirit IRQ config */
   pRadioDriver->GpioIrq(&xGpioIRQ);
-  
+
   /* Spirit Radio config */    
   pRadioDriver->RadioInit(&xRadioInit);
   
@@ -293,7 +298,6 @@ void SPIRIT1_Init(void)
   
   pRadioDriver->SetRssiThreshold(RSSI_THRESHOLD);
 }
-
 
 /**
 * @brief  This function initializes the BASIC Packet handler of spirit1
@@ -311,69 +315,41 @@ void BasicProtocolInit(void)
 
 /**
 * @brief  This routine will put the radio and mcu in LPM
-* @param  None
+* @param  mcu_status The status in which the MCU is entering
+* @param  radio_status The status in which the MCU is entering
 * @retval None
 */
-void Enter_LP_mode(void)
+void Enter_LP_mode(MCU_Status_t mcu_status, Radio_Status_t radio_status)
 {
-  
+
   pMCU_LPM_Comm = &MCU_LPM_cb;
   pRadio_LPM_Comm = &Radio_LPM_cb;
   
-#if defined(MCU_STOP_MODE)&&defined(RF_SHUTDOWN) 
+if (radio_status==RF_SHUTDOWN)
   {
-    pRadio_LPM_Comm->RadioShutDown();  
-    pMCU_LPM_Comm->McuStopMode();
+    pRadio_LPM_Comm->RadioShutDown();
   }
-#elif defined(MCU_STOP_MODE)&&defined(RF_STANDBY) 
+if (radio_status==RF_STANDBY)
   {
     pRadio_LPM_Comm->RadioStandBy();
-    pMCU_LPM_Comm->McuStopMode();
   }  
-#elif defined(MCU_STOP_MODE)&&defined(RF_SLEEP) 
+if (radio_status==RF_SLEEP)
   {
     pRadio_LPM_Comm->RadioSleep();
-    pMCU_LPM_Comm->McuStopMode();
-  }   
-#elif defined(MCU_STANDBY_MODE)&&defined(RF_SHUTDOWN) 
+  }
+
+if (mcu_status==MCU_STANDBY_MODE)
   {
-    pRadio_LPM_Comm->RadioShutDown(); 
     pMCU_LPM_Comm->McuStandbyMode();
   } 
-#elif defined(MCU_STANDBY_MODE)&&defined(RF_STANDBY) 
+if (mcu_status==MCU_STOP_MODE)
   {
-    pRadio_LPM_Comm->RadioStandBy();  
-    pMCU_LPM_Comm->McuStandbyMode();
+    pMCU_LPM_Comm->McuStopMode();
   }
-#elif defined(MCU_STANDBY_MODE)&&defined(RF_SLEEP) 
+if (mcu_status==MCU_SLEEP_MODE)
   {
-    pRadio_LPM_Comm->RadioSleep();
-    pMCU_LPM_Comm->McuStandbyMode();
-  }  
-#elif defined(MCU_SLEEP_MODE)&&defined(RF_SHUTDOWN) 
-  {
-    pRadio_LPM_Comm->RadioShutDown(); 
     pMCU_LPM_Comm->McuSleepMode();
   }
-#elif defined(MCU_SLEEP_MODE)&&defined(RF_STANDBY) 
-  {
-    pRadio_LPM_Comm->RadioStandBy(); 
-    pMCU_LPM_Comm->McuSleepMode();
-  }
-#elif defined(MCU_SLEEP_MODE)&&defined(RF_SLEEP) 
-  {
-    pRadio_LPM_Comm->RadioSleep();
-    pMCU_LPM_Comm->McuSleepMode();
-  }
-#elif defined(MCU_STOP_MODE)
-  pMCU_LPM_Comm->McuStopMode();
-  
-#elif defined(MCU_STANDBY_MODE)
-  pMCU_LPM_Comm->McuStandbyMode();
-  
-#else
-  pMCU_LPM_Comm->McuSleepMode();
-#endif
 }
 
 /**
@@ -394,6 +370,7 @@ void Exit_LP_mode(void)
 */
 void MCU_Enter_StopMode(void)
 {
+  LowPower_Config();
   HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);  /* Infinite loop */
 }
 
@@ -404,7 +381,12 @@ void MCU_Enter_StopMode(void)
 */
 void MCU_Enter_StandbyMode(void)
 {
-  HAL_PWR_EnterSTANDBYMode();  /* Infinite loop */
+	/*in case of bad return to stanby*/
+	if(__HAL_PWR_GET_FLAG(PWR_FLAG_WU)){
+	   __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+	   }
+	  LowPower_Config();
+	HAL_PWR_EnterSTANDBYMode();  /* Infinite loop */
 }
 
 /**
@@ -417,7 +399,10 @@ void MCU_Enter_SleepMode(void)
   /*Suspend Tick increment to prevent wakeup by Systick interrupt. 
   Otherwise the Systick interrupt will wake up the device within 1ms (HAL time base)*/
   HAL_SuspendTick();
-  HAL_PWR_EnterSLEEPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);  /* Infinite loop */
+
+  HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+  /*when returning from sleep mode resume systick*/
+  HAL_ResumeTick();
 }
 
 /**
@@ -495,101 +480,118 @@ void RadioSleep(void)
 }
 
 /**
-* @brief  This routine updates the respective status for key press.
+* @brief  This function writes an array of uint8_t of length 'length'.
+* @param  array: poiter to the array to write.
+* @param  length: the length of the array passed
+* @retval None
+*
+*/
+void FLASH_WriteArray(uint8_t* array, uint32_t length){
+
+	int i;
+	HAL_FLASHEx_DATAEEPROM_Unlock();
+	  for(i=0;i< length;i++){
+	  HAL_FLASHEx_DATAEEPROM_Program(TYPEPROGRAMDATA_FASTBYTE, FLASH_EEPROM_BASE+i, *((uint8_t*)(array+i)));
+	  }
+
+
+	  HAL_FLASHEx_DATAEEPROM_Lock();
+
+}
+
+RTC_TimeTypeDef __attribute__ ((noinline))RTC_GetTime(){
+	volatile RTC_TimeTypeDef sTime={0,0,0};
+	HAL_RTC_GetTime(&RtcHandle, &sTime,FORMAT_BIN );
+	printf("function: time %d:%d:%d\r\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
+	return sTime;
+}
+
+HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss){
+    RTC_TimeTypeDef stimestructure;
+
+	stimestructure.Hours = hh%10+hh/10*16;
+	    stimestructure.Minutes = mm%10+mm/10*16;
+	    stimestructure.Seconds = ss%10+mm/10*16;
+	    stimestructure.TimeFormat = RTC_HOURFORMAT_24;
+	    stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE ;
+	    stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
+
+
+	return HAL_RTC_SetTime(&RtcHandle, &stimestructure, FORMAT_BCD);
+}
+
+/**
+* @brief  This routine sets wakeup timer.
 * @param  None
 * @retval None
 */
-void Set_KeyStatus(FlagStatus val)
-{
-  if(val==SET)
-  {
-    KEYStatusData = 1;
-  }
-  else
-    KEYStatusData = 0;
+void Set_WakeupTimer(uint32_t milliseconds){
+	/*Wakeup Time Base = 16 /(~39.000KHz) = ~0,410 ms
+	      Wakeup Time = seconds = 0,410ms  * WakeUpCounter
+	       ==> WakeUpCounter = seconds /0,410ms = 9750 = 0x2616 */
+    HAL_RTCEx_SetWakeUpTimer_IT(&RtcHandle, milliseconds/0.410, RTC_WAKEUPCLOCK_RTCCLK_DIV16);
+
+}
+/*@Brief Set alarm, ignores weekday.
+ *@param hours The hours of the alarm
+ *@param minutes The minutes of the alarm
+ *@param seconds The seconds of the alarm
+ *@retval status value of the function
+ * */
+int Set_Alarm(uint8_t hours, uint8_t minutes, uint8_t seconds){
+
+	  RTC_AlarmTypeDef sAlarm;
+
+	  if(hours>24 ||  minutes>60 || seconds>60){
+		  return HAL_ERROR;
+	  }
+
+	  sAlarm.AlarmTime.Hours = hours;
+	  sAlarm.AlarmTime.Minutes = minutes;
+	  sAlarm.AlarmTime.Seconds= seconds;
+	  sAlarm.AlarmDateWeekDay = 0x0;
+	  sAlarm.AlarmTime.TimeFormat = RTC_HOURFORMAT_24;
+	  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+	  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+	  sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;
+	  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+	  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+	  sAlarm.Alarm = RTC_ALARM_A;
+	  return HAL_RTC_SetAlarm_IT(&RtcHandle, &sAlarm, FORMAT_BIN);
 }
 
+void Disable_WakeupTimer(){
+    HAL_RTCEx_DeactivateWakeUpTimer(&RtcHandle);
 
-/**
-  * @brief  SYSTICK callback.
-  * @param  None
-  * @retval None
-  */
-void HAL_SYSTICK_Callback(void)
-{
-  if(exitTime)
-  {
-    /*Decreament the counter to check when 3 seconds has been elapsed*/  
-    exitCounter--;
-    /*3 seconds has been elapsed*/
-    if(exitCounter <= TIME_UP)
-    {
-        exitTime = RESET;
-    }
-  }
-  
-#if defined(RF_STANDBY)
-  /*Check if Push Button pressed for wakeup or to send data*/
-  if(PushButtonStatusWakeup)
-  {
-    /*Decreament the counter to check when 5 seconds has been elapsed*/  
-    wakeupCounter--;
-    
-    /*5seconds has been elapsed*/
-    if(wakeupCounter<=TIME_UP)
-    {
-      /*Perform wakeup opeartion*/
-      wakeupFlag = SET;
-      Exit_LP_mode();
-      BSP_LED_Toggle(LED2);
-      PushButtonStatusWakeup = RESET;
-      PushButtonStatusData = SET;
-    }
-  }
-  else if(PushButtonStatusData)
-  {
-    dataSendCounter--;
-    if(dataSendCounter<=TIME_UP)
-    {
-      datasendFlag = SET;
-      PushButtonStatusWakeup = RESET;
-      PushButtonStatusData = RESET;
-    }
-  }
-#endif
 }
+
+void Disable_Alarm(){
+	HAL_RTC_DeactivateAlarm(&RtcHandle,RTC_ALARM_A);
+}
+
 /**
 * @}
 */
-/**
-  * @brief GPIO EXTI callback
-  * @param uint16_t GPIO_Pin
-  * @retval None
-  */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-#if defined(MCU_STOP_MODE)/*if MCU is in stop mode*/        
 
+void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
+{
+	printf("exit stop mode\r\n");
+	  HAL_PWREx_DisableUltraLowPower();
+	  HAL_PWREx_DisableFastWakeUp();
   /* Clear Wake Up Flag */
   __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
-      
+
   /* Configures system clock after wake-up from STOP: enable HSE, PLL and select
     PLL as system clock source (HSE and PLL are disabled in STOP mode) */
-    SystemClockConfig_STOP(); 
-#endif
-#if defined(MCU_SLEEP_MODE) 
-    /* Resume Tick interrupt if disabled prior to sleep mode entry*/
-    HAL_ResumeTick();
-#endif 
+    SystemClockConfig_STOP();
+
     
     /* Initialize LEDs*/
     RadioShieldLedInit(RADIO_SHIELD_LED);
     //BSP_LED_Init(LED2); 
 
-  if (GPIO_Pin == USER_BUTTON_PIN)
-  {
-    sensors_changed(&button_sensor);
-  }
+   sensors_changed(&button_sensor);
+
 
 }
 /**
@@ -601,7 +603,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   * @param  None
   * @retval None
   */
-#if defined(MCU_STOP_MODE)/*if MCU is in stop mode*/        
 
 static void SystemClockConfig_STOP(void)
 {
@@ -625,8 +626,8 @@ static void SystemClockConfig_STOP(void)
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLLMUL_4;
-  RCC_OscInitStruct.PLL.PLLDIV = RCC_PLLDIV_2;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  RCC_OscInitStruct.PLL.PLLDIV = RCC_PLL_DIV3;
   RCC_OscInitStruct.HSICalibrationValue = 0x10;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
@@ -636,7 +637,41 @@ static void SystemClockConfig_STOP(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1);
 }
-#endif 
+
+static void LowPower_Config(void)
+{
+ GPIO_InitTypeDef GPIO_InitStructure = {0};
+
+ HAL_PWREx_EnableUltraLowPower();
+ 	HAL_PWREx_EnableFastWakeUp();
+
+  __GPIOA_CLK_ENABLE();
+  __GPIOB_CLK_ENABLE();
+  __GPIOC_CLK_ENABLE();
+  __GPIOD_CLK_ENABLE();
+  __GPIOH_CLK_ENABLE();
+
+  /* Configure all GPIO port pins in Analog Input mode (floating input trigger OFF) */
+
+  GPIO_InitStructure.Pin = GPIO_PIN_All;
+  GPIO_InitStructure.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStructure.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStructure);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStructure);
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStructure);
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStructure);
+
+  /* Disable GPIOs clock */
+
+  __GPIOA_CLK_DISABLE();
+  __GPIOB_CLK_DISABLE();
+  __GPIOC_CLK_DISABLE();
+  __GPIOD_CLK_DISABLE();
+  __GPIOH_CLK_DISABLE();
+
+
+}
 /**
 * @}
 */

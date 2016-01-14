@@ -78,13 +78,15 @@
 #endif
 
 /*  Uncomment the system Operating mode */
-//#define USE_LOW_POWER_MODE
+/*#define USE_LOW_POWER_MODE*/
 
 #if defined (USE_LOW_POWER_MODE)
 #define LPM_ENABLE
-#define MCU_STOP_MODE
+//#define MCU_STOP_MODE
+#define MCU_STANDBY_MODE
 //#define MCU_SLEEP_MODE
 //#define RF_STANDBY
+#define RF_SHUTDOWN
 #endif
 
 
@@ -225,10 +227,31 @@ typedef struct
   uint8_t* DataBuff;
 }AppliFrame_t;
 
+typedef enum Radio_Status {
+	RF_SHUTDOWN,
+	RF_STANDBY,
+	RF_SLEEP,
+	RF_READY
+} Radio_Status_t
+;
+
+typedef enum  {
+	MCU_SLEEP_MODE,
+	MCU_STANDBY_MODE,
+	MCU_STOP_MODE,
+	MCU_RUN_MODE
+
+} MCU_Status_t;
+
+typedef struct {
+	uint8_t hour;
+	uint8_t minute;
+	uint8_t second;
+} Alarm_Typedef_t;
 
 /* Exported functions ------------------------------------------------------- */
 void HAL_Spirit1_Init(void);
-void Enter_LP_mode(void);
+void Enter_LP_mode(MCU_Status_t mcu_status, Radio_Status_t radio_status);
 void Exit_LP_mode(void);
 void MCU_Enter_StopMode(void);
 void MCU_Enter_StandbyMode(void);
@@ -239,8 +262,13 @@ void RadioStandBy(void);
 void RadioSleep(void);
 void SPIRIT1_Init(void);
 void BasicProtocolInit(void);
-void Set_KeyStatus(FlagStatus val);
-
+void FLASH_WriteArray(uint8_t* array, uint32_t length);
+RTC_TimeTypeDef __attribute__ ((noinline)) RTC_GetTime();
+HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss);
+void Set_WakeupTimer(uint32_t milliseconds);
+void Disable_WakeupTimer();
+int Set_Alarm(uint8_t hour, uint8_t minutes, uint8_t seconds);
+void Disable_Alarm();
 #endif /* __SPIRIT1_APPLI_H */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

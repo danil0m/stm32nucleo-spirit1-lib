@@ -42,7 +42,8 @@
 #include "spirit1.h"    
 
 
-extern UART_HandleTypeDef UartHandle;    
+extern UART_HandleTypeDef UartHandle;
+extern RTC_HandleTypeDef RtcHandle;
 /** @addtogroup STM32L1xx_HAL_Examples
 * @{
 */
@@ -63,6 +64,7 @@ extern UART_HandleTypeDef UartHandle;
 /*            Cortex-M3 Processor Exceptions Handlers                         */
 /******************************************************************************/
 extern I2C_HandleTypeDef I2cHandle;
+
 /**
 * @brief   This function handles NMI exception.
 * @param  None
@@ -183,9 +185,22 @@ void I2Cx_ER_IRQHandler(void)
   HAL_I2C_ER_IRQHandler(& I2cHandle);
 }
 
+void RTC_WKUP_IRQHandler(void)
+{
+  HAL_RTCEx_WakeUpTimerIRQHandler(&RtcHandle);
+  HAL_UART_Transmit(&UartHandle, (uint8_t*)"wake up\r\n", 9, 0xFFFF);
+}
+
+void RTC_Alarm_IRQHandler(void)
+{
+
+  HAL_RTC_AlarmIRQHandler(&RtcHandle);
+
+  HAL_UART_Transmit(&UartHandle,(uint8_t*)"wake up\r\n", 9,0xFFFF );
+  }
 
 /**
-* @brief  This function handles External lines 15 to 4 interrupt request.
+* @brief  This function handles External line 0.
 * @param  None
 * @retval None
 */
@@ -199,6 +214,11 @@ void EXTI0_IRQHandler(void)
   while(1);
 }
 
+/**
+* @brief  This function handles External line 1.
+* @param  None
+* @retval None
+*/
 void EXTI1_IRQHandler(void)
 {
   /* EXTI line interrupt detected */
@@ -209,6 +229,11 @@ void EXTI1_IRQHandler(void)
   while(1);
 }
 
+/**
+* @brief  This function handles External line 2.
+* @param  None
+* @retval None
+*/
 void EXTI2_IRQHandler(void)
 {
   /* EXTI line interrupt detected */
@@ -219,6 +244,11 @@ void EXTI2_IRQHandler(void)
   while(1);
 }
 
+/**
+* @brief  This function handles External line 3.
+* @param  None
+* @retval None
+*/
 void EXTI3_IRQHandler(void)
 {
   /* EXTI line interrupt detected */
@@ -231,7 +261,7 @@ void EXTI3_IRQHandler(void)
 
 
 /**
-* @brief  This function handles External lines 15 to 4 interrupt request.
+* @brief  This function handles External lines 9 to 5 interrupt request.
 * @param  None
 * @retval None
 */
@@ -246,55 +276,22 @@ void EXTI9_5_IRQHandler(void)
     
     spirit1_interrupt_callback();
   }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_9))
+   {
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9);
-  
-  
+   }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_8))
+     {
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_8);
-  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+     }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_6))
+     {
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_6);
+     }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_5))
+     {
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_5);
-  
-#ifndef  LPM_ENABLE
-  
-  //  if(__HAL_GPIO_EXTI_GET_IT(KEY_BUTTON_EXTI_LINE) != RESET) 
-  //  { 
-  //    __HAL_GPIO_EXTI_CLEAR_IT(KEY_BUTTON_EXTI_LINE);
-  //    
-  // Set_KeyStatus(SET);
-  //  }
-  //  
-#else /*Low Power mode enabled*/ 
-  
-#if defined(RF_STANDBY)/*if spirit1 is in standby*/
-  
-  if(EXTI->PR & KEY_BUTTON_EXTI_LINE)
-  {
-    HAL_GPIO_EXTI_Callback(KEY_BUTTON_EXTI_LINE);
-    /* EXTI line 13 interrupt detected */
-    if(HAL_GPIO_ReadPin(KEY_BUTTON_GPIO_PORT, KEY_BUTTON_PIN) == 0x01) //0x00
-    {
-      HAL_GPIO_EXTI_Callback(KEY_BUTTON_EXTI_LINE);
-      
-      PushButtonStatusWakeup = SET;
-      PushButtonStatusData = RESET;
-      wakeupCounter = LPM_WAKEUP_TIME; 
-      dataSendCounter = DATA_SEND_TIME;
-      dataSendCounter++;
-    }
-    __HAL_GPIO_EXTI_CLEAR_IT(KEY_BUTTON_EXTI_LINE);
-  } 
-#else /*if spirit1 is not in standby or sleep mode but MCU is in LPM*/
-  
-  if(__HAL_GPIO_EXTI_GET_IT(KEY_BUTTON_EXTI_LINE) != RESET) 
-  { 
-    __HAL_GPIO_EXTI_CLEAR_IT(KEY_BUTTON_EXTI_LINE);
-    
-    HAL_GPIO_EXTI_Callback(KEY_BUTTON_EXTI_LINE);
-    
-    Set_KeyStatus(SET);
-  }
-#endif
-#endif
+     }
 }
 
 

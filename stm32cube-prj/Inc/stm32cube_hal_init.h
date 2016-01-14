@@ -72,7 +72,6 @@ extern "C" {
   /* Exported functions ------------------------------------------------------- */
 
 void stm32cube_hal_init();
-void RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss);
 
 #ifdef __cplusplus
 }

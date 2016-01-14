@@ -62,7 +62,8 @@ void EXTI0_IRQHandler(void);
 void EXTI1_IRQHandler(void);
 void I2Cx_EV_IRQHandler(void);
 void I2Cx_ER_IRQHandler(void);
-
+void RTC_WKUP_IRQHandler(void);
+void RTC_Alarm_IRQHandler(void);
 #ifdef __cplusplus
 }
 #endif

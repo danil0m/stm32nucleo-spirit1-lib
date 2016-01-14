@@ -40,6 +40,8 @@
 #include "string.h"
 #include "stdlib.h"
 #include "stm32cube_hal_init.h"
+#include "stm32l1xx_hal_pwr.h"
+#include "stm32l1xx_hal_gpio.h"
 #include "stm32l1xx_nucleo.h"
 #include "radio_shield_config.h"
 #include "spirit1_appli.h"
@@ -55,6 +57,7 @@ volatile float UVI_Value;
 static void RTC_Config(void);
 static void RTC_TimeStampConfig(void);
 static void SystemClock_Config(void);
+void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 
 void BSP_PB_Init(Button_TypeDef Button, ButtonMode_TypeDef Button_Mode);
@@ -86,17 +89,30 @@ void stm32cube_hal_init()
     /* Configure the system clock */
     SystemClock_Config();
 
-    HAL_EnableDBGStopMode();
+    /*HAL_EnableDBGStopMode();*/
     
     MX_GPIO_Init();
+
     HAL_Spirit1_Init();
+
     SPIRIT1_Init();
-    
+    SystemPower_Config();
+
     USARTConfig();
    /* Initialize RTC */
    
    RTC_Config();
-   RTC_TimeStampConfig();
+   /*if does not return to standby set clock else clear flag*/
+   if(__HAL_PWR_GET_FLAG(PWR_FLAG_WU)){
+   __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+   }
+   if(__HAL_PWR_GET_FLAG(PWR_FLAG_SB)){
+	   __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);
+   }
+
+   /*to set RTC Time, use in the application RTC_Time_Regulate()*/
+
+
 }
 
 
@@ -113,13 +129,13 @@ void RTC_Config(void)
 
   /* Configure RTC prescaler and RTC data registers */
   /* RTC configured as follow:
-  - Hour Format    = Format 12
+  - Hour Format    = Format 24
   - Asynch Prediv  = Value according to source clock
   - Synch Prediv   = Value according to source clock
   - OutPut         = Output Disable
   - OutPutPolarity = High Polarity
   - OutPutType     = Open Drain */ 
-  RtcHandle.Init.HourFormat = RTC_HOURFORMAT_12;
+  RtcHandle.Init.HourFormat = RTC_HOURFORMAT_24;
   RtcHandle.Init.AsynchPrediv = RTC_ASYNCH_PREDIV;
   RtcHandle.Init.SynchPrediv = RTC_SYNCH_PREDIV;
   RtcHandle.Init.OutPut = RTC_OUTPUT_DISABLE;
@@ -162,7 +178,7 @@ static void RTC_TimeStampConfig(void)
     stimestructure.Hours = 0x08;
     stimestructure.Minutes = 0x10;
     stimestructure.Seconds = 0x00;
-    stimestructure.TimeFormat = RTC_HOURFORMAT12_AM;
+    stimestructure.TimeFormat = RTC_HOURFORMAT_24;
     stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE ;
     stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
 
@@ -307,9 +323,9 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
   /* Enable RTC Clock */ 
   __HAL_RCC_RTC_ENABLE(); 
 
-  /*##-3- Configure the NVIC for RTC TimeStamp ###################################*/
-  HAL_NVIC_SetPriority(/*TAMP_STAMP_IRQn*/2, 0x0F, 0);
-  HAL_NVIC_EnableIRQ(/*TAMP_STAMP_IRQn*/2);
+  /*##-3- Configure the NVIC for RTC RTC Wakeup IRQn ###################################*/
+  HAL_NVIC_SetPriority(RTC_WKUP_IRQn, 0x0, 0);
+  HAL_NVIC_EnableIRQ(RTC_WKUP_IRQn);
 }
 
 
@@ -322,12 +338,24 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
 */
 void MX_GPIO_Init(void)
 {
-
-
   /* GPIO Ports Clock Enable */
   __GPIOA_CLK_ENABLE();
   __GPIOC_CLK_ENABLE();
   __GPIOD_CLK_ENABLE();
+}
+
+void SystemPower_Config(){
+   /* Configure unused GPIO port pins in Analog Input mode (floating input trigger OFF) */
+   GPIO_InitTypeDef GPIO_InitStructure = {0};
+
+   GPIO_InitStructure.Pin = GPIO_PIN_All;
+   GPIO_InitStructure.Mode = GPIO_MODE_ANALOG;
+   GPIO_InitStructure.Pull = GPIO_NOPULL;
+     HAL_GPIO_Init(GPIOH, &GPIO_InitStructure);
+
+     /* Disable GPIOs clock */
+     __GPIOH_CLK_DISABLE();
+
 }
 
 

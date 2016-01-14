@@ -42,7 +42,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l1xx_hal.h"
-
 /** @addtogroup STM32L1xx_HAL_Driver
   * @{
   */
