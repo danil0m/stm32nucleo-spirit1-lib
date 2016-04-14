@@ -72,6 +72,7 @@ extern "C" {
   /* Exported functions ------------------------------------------------------- */
 
 void stm32cube_hal_init();
+void SystemClock_Config(void);
 
 #ifdef __cplusplus
 }

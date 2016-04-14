@@ -54,6 +54,9 @@ volatile uint8_t UART_RxBuffer[UART_RxBufferSize];
 volatile uint32_t Usart_BaudRate = 115200;
 
 UART_HandleTypeDef UartHandle;
+RTC_HandleTypeDef RtcHandle;
+
+
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 

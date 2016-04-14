@@ -45,18 +45,19 @@
 #include "stm32l1xx_nucleo.h"
 #include "radio_shield_config.h"
 #include "spirit1_appli.h"
-
+#include "rtc.h"
 
 extern UART_HandleTypeDef UartHandle;
 FlagStatus TamperStatus = RESET;
 volatile uint8_t scheduler_started=0;
-RTC_HandleTypeDef RtcHandle;
 int dec_precision = 2;
 volatile float UVI_Value;
-
+#define OLD_IMPL 0
+#if OLD_IMPL
+extern RTC_HandleTypeDef RtcHandle;
 static void RTC_Config(void);
 static void RTC_TimeStampConfig(void);
-static void SystemClock_Config(void);
+#endif
 void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 
@@ -100,9 +101,9 @@ void stm32cube_hal_init()
 
     USARTConfig();
    /* Initialize RTC */
-   
-   RTC_Config();
-   /*if does not return to standby set clock else clear flag*/
+    RTC_Config();
+
+   /*clear flags if return from standby*/
    if(__HAL_PWR_GET_FLAG(PWR_FLAG_WU)){
    __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
    }
@@ -110,13 +111,14 @@ void stm32cube_hal_init()
 	   __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);
    }
 
+
    /*to set RTC Time, use in the application RTC_Time_Regulate()*/
 
 
 }
 
 
-
+#if OLD_IMPL
 /**
   * @brief  Configure the RTC peripheral by selecting the clock source.
   * @param  None
@@ -188,7 +190,7 @@ static void RTC_TimeStampConfig(void)
         Error_Handler();
     }
 }
-
+#endif /*OLD_IMPL*/
 /**
   * @brief  System Clock Configuration
   *         The system Clock is configured as follow : 
@@ -307,13 +309,16 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
     /* Initialization Error */
     Error_Handler(); 
   }
+  /*if returned from standby, do not reset RTC registers*/
+  if(!__HAL_PWR_GET_FLAG(PWR_FLAG_SB)){
 
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
-  if(HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-  { 
-    /* Initialization Error */
-    Error_Handler(); 
+	  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+	  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+	  if(HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+	  {
+		  /* Initialization Error */
+		  Error_Handler();
+	  }
   }
 #else
 #error Please select the RTC Clock source inside the stm32cube_hal_init.h file
@@ -326,6 +331,9 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef *hrtc)
   /*##-3- Configure the NVIC for RTC RTC Wakeup IRQn ###################################*/
   HAL_NVIC_SetPriority(RTC_WKUP_IRQn, 0x0, 0);
   HAL_NVIC_EnableIRQ(RTC_WKUP_IRQn);
+  /*##-3- Configure the NVIC for RTC RTC Alarm IRQn ###################################*/
+  HAL_NVIC_SetPriority(RTC_Alarm_IRQn, 0x0, 0);
+    HAL_NVIC_EnableIRQ(RTC_Alarm_IRQn);
 }
 
 

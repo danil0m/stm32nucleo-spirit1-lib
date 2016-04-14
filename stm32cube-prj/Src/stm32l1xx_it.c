@@ -185,19 +185,15 @@ void I2Cx_ER_IRQHandler(void)
   HAL_I2C_ER_IRQHandler(& I2cHandle);
 }
 
+void RTC_Alarm_IRQHandler(void)
+{
+	HAL_RTC_AlarmIRQHandler(&RtcHandle);
+}
 void RTC_WKUP_IRQHandler(void)
 {
   HAL_RTCEx_WakeUpTimerIRQHandler(&RtcHandle);
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)"wake up\r\n", 9, 0xFFFF);
 }
 
-void RTC_Alarm_IRQHandler(void)
-{
-
-  HAL_RTC_AlarmIRQHandler(&RtcHandle);
-
-  HAL_UART_Transmit(&UartHandle,(uint8_t*)"wake up\r\n", 9,0xFFFF );
-  }
 
 /**
 * @brief  This function handles External line 0.
@@ -303,7 +299,11 @@ void EXTI9_5_IRQHandler(void)
 */
 void EXTI15_10_IRQHandler(void)
 {
-  HAL_GPIO_EXTI_IRQHandler(USER_BUTTON_PIN);
+	if(__HAL_GPIO_EXTI_GET_IT(USER_BUTTON_PIN))
+	     {
+		 HAL_GPIO_EXTI_IRQHandler(USER_BUTTON_PIN);
+	     }
+
 }
 
 

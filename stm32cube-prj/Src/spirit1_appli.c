@@ -48,13 +48,16 @@ by the user
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l152xe.h"
 #include "spirit1_appli.h"
+#include "stm32cube_hal_init.h"
 #include "MCU_Interface.h"
 #include "SPIRIT1_Util.h"
 #include <stdio.h>
 
 #include "lib/sensors.h"
 extern const struct sensors_sensor button_sensor;
-extern RTC_HandleTypeDef RtcHandle;
+
+#define OLD_IMPL 0
+
 /** @addtogroup USER
 * @{
 */
@@ -91,6 +94,8 @@ RadioDriver_t spirit_cb =
   .GetRxPacket = Spirit1GetRxPacket
 };
 
+#if OLD_IMPL
+
 /**
 * @brief MCULowPowerMode_t structure fitting
 */
@@ -111,6 +116,7 @@ RadioLowPowerMode_t Radio_LPM_cb =
   .RadioSleep = RadioSleep,
   .RadioPowerON = RadioPowerON
 };
+#endif /*OLD_IMPL*/
 
 /**
 * @brief GPIO structure fitting
@@ -232,25 +238,33 @@ uint16_t dataSendCounter = 0x00;
 static void LowPower_Config(void);
 static void SystemClockConfig_STOP(void);
 void HAL_Spirit1_Init(void);
+void SPIRIT1_Init(void);
+void STackProtocolInit(void);
+void BasicProtocolInit(void);
+void RadioPowerON(void);
+void RadioPowerOFF(void);
+void RadioStandBy(void);
+void RadioSleep(void);
+
+#if OLD_IMPL
 void Enter_LP_mode(MCU_Status_t mcu_status, Radio_Status_t radio_status);
 void Exit_LP_mode(void);
 void MCU_Enter_StopMode(void);
 void MCU_Enter_StandbyMode(void);
 void MCU_Enter_SleepMode(void);
-void RadioPowerON(void);
-void RadioPowerOFF(void);
-void RadioStandBy(void);
-void RadioSleep(void);
-void SPIRIT1_Init(void);
-void STackProtocolInit(void);
-void BasicProtocolInit(void);
-void FLASH_WriteArray(uint8_t* array, uint32_t length);
-RTC_TimeTypeDef __attribute__ ((noinline))RTC_GetTime();
+void FLASH_WriteArray(uint8_t* array, uint32_t offset, uint32_t length);
+Time_Typedef_t RTC_GetTime();
 HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss);
 void Set_WakeupTimer(uint32_t milliseconds);
 void Disable_WakeupTimer();
 int Set_Alarm(uint8_t hour, uint8_t minutes, uint8_t seconds);
+Alarm_Typedef_t GetAlarm();
 void Disable_Alarm();
+int Compare_Alarm(Alarm_Typedef_t alarm);
+int Compare_Alarms(Alarm_Typedef_t alarm1, Alarm_Typedef_t alarm2);
+void BKUPWrite(uint32_t BackupRegister, uint32_t Data);
+uint32_t BKUPRegRead(uint32_t BackupRegister);
+#endif /*OLD_IMPL*/
 void HAL_SYSTICK_Callback(void);
 /* Private functions ---------------------------------------------------------*/
 
@@ -313,6 +327,8 @@ void BasicProtocolInit(void)
 #endif
 }
 
+
+#if OLD_IMPL
 /**
 * @brief  This routine will put the radio and mcu in LPM
 * @param  mcu_status The status in which the MCU is entering
@@ -486,7 +502,7 @@ void RadioSleep(void)
 * @retval None
 *
 */
-void FLASH_WriteArray(uint8_t* array, uint32_t length){
+void FLASH_WriteArray(uint8_t* array, uint32_t offset,  uint32_t length){
 
 	int i;
 	HAL_FLASHEx_DATAEEPROM_Unlock();
@@ -499,25 +515,30 @@ void FLASH_WriteArray(uint8_t* array, uint32_t length){
 
 }
 
-RTC_TimeTypeDef __attribute__ ((noinline))RTC_GetTime(){
-	volatile RTC_TimeTypeDef sTime={0,0,0};
+Time_Typedef_t RTC_GetTime(){
+	RTC_TimeTypeDef sTime;
+	RTC_DateTypeDef sDate;
+	Time_Typedef_t ret_time;
 	HAL_RTC_GetTime(&RtcHandle, &sTime,FORMAT_BIN );
-	printf("function: time %d:%d:%d\r\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
-	return sTime;
+	HAL_RTC_GetDate(&RtcHandle, &sDate, FORMAT_BIN);
+	ret_time.hour=sTime.Hours;
+	ret_time.minute=sTime.Minutes;
+	ret_time.second=sTime.Seconds;
+	return ret_time;
 }
 
 HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss){
     RTC_TimeTypeDef stimestructure;
 
-	stimestructure.Hours = hh%10+hh/10*16;
-	    stimestructure.Minutes = mm%10+mm/10*16;
-	    stimestructure.Seconds = ss%10+mm/10*16;
+	stimestructure.Hours = hh;
+	    stimestructure.Minutes = mm;
+	    stimestructure.Seconds = ss;
 	    stimestructure.TimeFormat = RTC_HOURFORMAT_24;
 	    stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE ;
 	    stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
 
 
-	return HAL_RTC_SetTime(&RtcHandle, &stimestructure, FORMAT_BCD);
+	return HAL_RTC_SetTime(&RtcHandle, &stimestructure, FORMAT_BIN);
 }
 
 /**
@@ -560,6 +581,15 @@ int Set_Alarm(uint8_t hours, uint8_t minutes, uint8_t seconds){
 	  return HAL_RTC_SetAlarm_IT(&RtcHandle, &sAlarm, FORMAT_BIN);
 }
 
+Alarm_Typedef_t GetAlarm(){
+	RTC_AlarmTypeDef alarm;
+	Alarm_Typedef_t alarm_ret;
+	HAL_RTC_GetAlarm(&RtcHandle, &alarm, RTC_ALARM_A, FORMAT_BIN);
+	alarm_ret.hour= alarm.AlarmTime.Hours;
+	alarm_ret.minute=alarm.AlarmTime.Minutes;
+	alarm_ret.second=alarm.AlarmTime.Seconds;
+	return alarm_ret;
+}
 void Disable_WakeupTimer(){
     HAL_RTCEx_DeactivateWakeUpTimer(&RtcHandle);
 
@@ -568,10 +598,47 @@ void Disable_WakeupTimer(){
 void Disable_Alarm(){
 	HAL_RTC_DeactivateAlarm(&RtcHandle,RTC_ALARM_A);
 }
+/*gives 1 if alarm greater than time*/
+int Compare_Alarm(Alarm_Typedef_t alarm){
+	Time_Typedef_t time;
+	time=RTC_GetTime();
+	if(time.hour<alarm.hour){
+		return 1;
+	}
+	else if(time.hour==alarm.hour && time.minute<alarm.minute){
+		return 1;
+	}
+		else if(time.hour==alarm.hour && time.minute==alarm.minute && time.second < alarm.second){
+			return 1;
+		}
+	return 0;
+}
 
+/*return 1 if alarm1 > alarm2 else 0*/
+int Compare_Alarms(Alarm_Typedef_t alarm1, Alarm_Typedef_t alarm2){
+
+	if(alarm1.hour>alarm2.hour){
+		return 1;
+	}
+	else if(alarm1.hour==alarm2.hour && alarm1.minute>alarm1.minute){
+		return 1;
+	}
+	else if(alarm1.hour==alarm2.hour && alarm1.minute==alarm2.minute &&alarm1.second> alarm2.second){
+		return 1;
+	}
+	return 0;
+}
 /**
 * @}
 */
+
+void BKUPWrite(uint32_t BackupRegister, uint32_t Data){
+	HAL_RTCEx_BKUPWrite(&RtcHandle, BackupRegister, Data);
+}
+uint32_t BKUPRegRead(uint32_t BackupRegister){
+	return HAL_RTCEx_BKUPRead(&RtcHandle, BackupRegister);
+}
+
 
 void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
 {
@@ -590,13 +657,33 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
     RadioShieldLedInit(RADIO_SHIELD_LED);
     //BSP_LED_Init(LED2); 
 
-   sensors_changed(&button_sensor);
+    sensors_changed(&button_sensor);
 
 
 }
 /**
 * @}
 */
+#endif /*OLD_IMPL*/
+
+void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
+{
+  /* Clear Wake Up Flag */
+ /* __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+  SystemClock_Config();
+	printf("exit stop mode\r\n");
+*/
+
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin==USER_BUTTON_PIN){
+	 sensors_changed(&button_sensor);
+	}
+}
+
 /**
   * @brief  Configures system clock after wake-up from STOP: enable HSI, PLL
   *         and select PLL as system clock source.

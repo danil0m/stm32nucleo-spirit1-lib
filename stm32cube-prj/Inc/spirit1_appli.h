@@ -47,6 +47,8 @@
 #include "stm32l1xx_nucleo.h"
 
 
+#define OLD_IMPL 0
+
 /* Exported macro ------------------------------------------------------------*/
 
 #if defined(X_NUCLEO_IDS01A3)
@@ -144,11 +146,13 @@
 #define RECEIVE_TIMEOUT             2000.0 /*change the value for required timeout period*/
 #define RSSI_THRESHOLD              -120
 
+/*#define POWER_DBM                   11.6*/
 #define POWER_DBM                   11.6
 #define XTAL_OFFSET_PPM             0
 #define INFINITE_TIMEOUT            0.0
 
 /*Updated Radio paramters to increase the radio range*/
+
 #define CHANNEL_SPACE               20e3
 #define FREQ_DEVIATION              20e3
 #define BANDWIDTH                   100E3
@@ -158,8 +162,8 @@
 #define CRC_MODE                    PKT_CRC_MODE_8BITS
 #define EN_WHITENING                S_ENABLE
 #define SYNC_WORD                   0x1A2635A8
-/*
-"Old" parameters (may grant better throughput due to higher datarate)
+
+/*"Old" parameters (may grant better throughput due to higher datarate)
 #define CHANNEL_SPACE               100e3
 #define FREQ_DEVIATION              127e3
 #define BANDWIDTH                   540.0e3
@@ -243,16 +247,29 @@ typedef enum  {
 
 } MCU_Status_t;
 
+#if OLD_IMPL
 typedef struct {
 	uint8_t hour;
 	uint8_t minute;
 	uint8_t second;
 } Alarm_Typedef_t;
 
+typedef struct {
+	uint8_t hour;
+	uint8_t minute;
+	uint8_t second;
+} Time_Typedef_t;
+#endif /*OLD_IMPL*/
+
 /* Exported functions ------------------------------------------------------- */
 void HAL_Spirit1_Init(void);
+void SPIRIT1_Init(void);
+void BasicProtocolInit(void);
+
+#if OLD_IMPL
 void Enter_LP_mode(MCU_Status_t mcu_status, Radio_Status_t radio_status);
 void Exit_LP_mode(void);
+
 void MCU_Enter_StopMode(void);
 void MCU_Enter_StandbyMode(void);
 void MCU_Enter_SleepMode(void);
@@ -260,15 +277,23 @@ void RadioPowerON(void);
 void RadioPowerOFF(void);
 void RadioStandBy(void);
 void RadioSleep(void);
-void SPIRIT1_Init(void);
-void BasicProtocolInit(void);
-void FLASH_WriteArray(uint8_t* array, uint32_t length);
-RTC_TimeTypeDef __attribute__ ((noinline)) RTC_GetTime();
+
+
+void FLASH_WriteArray(uint8_t* array, uint32_t offset, uint32_t length);
+Time_Typedef_t RTC_GetTime();
 HAL_StatusTypeDef RTC_TimeRegulate(uint8_t hh, uint8_t mm, uint8_t ss);
 void Set_WakeupTimer(uint32_t milliseconds);
 void Disable_WakeupTimer();
 int Set_Alarm(uint8_t hour, uint8_t minutes, uint8_t seconds);
+Alarm_Typedef_t GetAlarm();
 void Disable_Alarm();
+int Compare_Alarm(Alarm_Typedef_t alarm);
+int Compare_Alarms(Alarm_Typedef_t alarm1, Alarm_Typedef_t alarm2);
+
+void BKUPWrite(uint32_t BackupRegister, uint32_t Data);
+uint32_t BKUPRegRead(uint32_t BackupRegister);
+#endif /*0*/
+
 #endif /* __SPIRIT1_APPLI_H */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
