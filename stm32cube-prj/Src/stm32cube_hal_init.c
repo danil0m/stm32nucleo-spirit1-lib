@@ -208,13 +208,74 @@ static void RTC_TimeStampConfig(void)
   * @param  None
   * @retval None
   */
+#ifdef SYSCLOCKCONFIGMSI
+
+/**
+  * @brief  System Clock Configuration
+  *         The system Clock is configured as follow :
+  *            System Clock source            = (MSI)
+  *            MSI Range                      = 0
+  *            SYSCLK(Hz)                     = 32000
+  *            HCLK(Hz)                       = 32000
+  *            AHB Prescaler                  = 2
+  *            APB1 Prescaler                 = 1
+  *            APB2 Prescaler                 = 1
+  *            Main regulator output voltage  = Scale2 mode
+  * @param  None
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+
+  /* Enable Power Control clock */
+  __PWR_CLK_ENABLE();
+
+  /* The voltage scaling allows optimizing the power consumption when the device is
+     clocked below the maximum system frequency, to update the voltage scaling value
+     regarding system frequency refer to product datasheet.  */
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
+
+  /* Enable MSI Oscillator */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_5;
+  RCC_OscInitStruct.MSICalibrationValue = 0x00;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if(HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    /* Initialization Error */
+    Error_Handler();
+  }
+
+  /* Select MSI as system clock source and configure the HCLK, PCLK1 and PCLK2
+     clocks dividers */
+  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  if(HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    /* Initialization Error */
+    Error_Handler();
+  }
+
+  /* Set MSI range to 0 */
+  __HAL_RCC_MSI_RANGE_CONFIG(RCC_MSIRANGE_5);
+
+}
+
+#else
+
 
 void SystemClock_Config(void)
 {
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
 
-  /* Enable HSE Oscillator and Activate PLL with HSE as source */
+  /* Enable HSI Oscillator and Activate PLL with HSI as source */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSEState = RCC_HSE_OFF;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
@@ -248,7 +309,7 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 }
-
+#endif /*SYSCLOCKCONFIGMSI*/
 
 /**
  * @brief  This function is executed in case of error occurrence.
@@ -351,7 +412,6 @@ void MX_GPIO_Init(void)
   __GPIOC_CLK_ENABLE();
   __GPIOD_CLK_ENABLE();
 }
-
 void SystemPower_Config(){
    /* Configure unused GPIO port pins in Analog Input mode (floating input trigger OFF) */
    GPIO_InitTypeDef GPIO_InitStructure = {0};

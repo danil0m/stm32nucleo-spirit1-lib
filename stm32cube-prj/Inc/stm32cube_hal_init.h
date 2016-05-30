@@ -37,7 +37,7 @@ extern "C" {
   /* Includes ------------------------------------------------------------------*/
 #include "stm32l1xx_hal.h"
 #include "stm32l1xx_nucleo.h"
-#include "platform-conf.h"  
+#include "contiki-conf.h"
 
 #ifdef X_NUCLEO_IKS01A1
 #include "x_nucleo_iks01a1_pressure.h"
@@ -46,13 +46,12 @@ extern "C" {
 #include "x_nucleo_iks01a1_hum_temp.h"  
 #endif /*X_NUCLEO_IKS01A1*/
 
-  
   /* Exported types ------------------------------------------------------------*/
   /* Exported constants --------------------------------------------------------*/ 
   
   /* Uncomment to enable the adaquate RTC Clock Source */
 
-#define RTC_CLOCK_SOURCE_LSI
+//#define RTC_CLOCK_SOURCE_LSI
 
 
 #ifdef RTC_CLOCK_SOURCE_LSI

@@ -664,7 +664,6 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
 /**
 * @}
 */
-#endif /*OLD_IMPL*/
 
 void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
 {
@@ -675,6 +674,7 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
 */
 
 }
+#endif /*OLD_IMPL*/
 
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
